@@ -2,8 +2,7 @@ import { Category, Currency, Frequency } from '@prisma/client';
 import dayjs from 'dayjs';
 import { z } from 'zod';
 
-export const CreateSubscriptionSchema = z
-  .object({
+const SubscriptionFields = z.object({
     name: z.string().nonempty({ message: 'Name is required' }),
 
     price: z
@@ -45,8 +44,10 @@ export const CreateSubscriptionSchema = z
       .refine((s) => (s ? dayjs(s).isValid() : true), {
         message: 'renewalDate must be a valid ISO date',
       }),
-  })
-  .superRefine((data, ctx) => {
+});
+
+export const CreateSubscriptionSchema = SubscriptionFields.superRefine(
+  (data, ctx) => {
     if (data.renewalDate) {
       const start = dayjs(data.startDate);
       const renewal = dayjs(data.renewalDate);
@@ -58,6 +59,10 @@ export const CreateSubscriptionSchema = z
         });
       }
     }
-  });
+  }
+);
+
+// Only these fields can be changed on update; userId and status cannot
+export const UpdateSubscriptionSchema = SubscriptionFields.partial();
 
 export type CreateSubscriptionInput = z.infer<typeof CreateSubscriptionSchema>;

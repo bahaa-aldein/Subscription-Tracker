@@ -32,13 +32,14 @@ export async function signIn(req: Request, res: Response, next: NextFunction) {
     }
 
     const token = generateTokens({ userId: user.id });
+    const safeUser = { ...user, password: undefined }; // never send the hash
 
     res.status(200).json({
       success: true,
       message: 'User signed in successfully',
       data: {
         token,
-        user,
+        user: safeUser,
       },
     });
   } catch (error) {
@@ -70,6 +71,7 @@ export async function signUp(req: Request, res: Response, next: NextFunction) {
         email,
         password: hashedPassword,
       },
+      omit: { password: true },
     });
 
     const token = generateTokens({ userId: newUser.id });

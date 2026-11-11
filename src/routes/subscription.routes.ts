@@ -13,13 +13,17 @@ import authenticate from '../middleware/auth.middleware.js';
 
 const subscriptionRouter = Router();
 
+subscriptionRouter.use(authenticate);
+
+// Static paths must come before '/:id', or Express matches them as an id
+subscriptionRouter.get('/upcoming-renewals', getUpcomingRenewals);
+subscriptionRouter.get('/user/:id', getSubscriptionsByUser);
+
 subscriptionRouter.get('/', getAllSubscriptions);
 subscriptionRouter.get('/:id', getSubscription);
-subscriptionRouter.post('/', authenticate, createSubscription);
-subscriptionRouter.put('/:id', authenticate, updateSubscription);
+subscriptionRouter.post('/', createSubscription);
+subscriptionRouter.put('/:id', updateSubscription);
 subscriptionRouter.delete('/:id', deleteSubscription);
-subscriptionRouter.get('/user/:id', authenticate, getSubscriptionsByUser);
-subscriptionRouter.put('/:id/cancel', authenticate, cancelSubscription);
-subscriptionRouter.get('/upcoming-renewals', getUpcomingRenewals);
+subscriptionRouter.put('/:id/cancel', cancelSubscription);
 
 export default subscriptionRouter;

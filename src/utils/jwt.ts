@@ -10,7 +10,7 @@ export const generateTokens = (payload: TokenPayload) => ({
   accessToken: jwt.sign(payload, ENV.JWT_SECRET, {
     expiresIn: '1d',
   }),
-  refreshToken: jwt.sign(payload, ENV.JWT_SECRET, {
+  refreshToken: jwt.sign(payload, ENV.JWT_REFRESH_SECRET, {
     expiresIn: '7d',
   }),
 });
