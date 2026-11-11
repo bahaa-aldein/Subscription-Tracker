@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction, Response } from 'express';
 import { ZodError } from 'zod';
 import ENV from '../config/env.js';
 import { workflowClient } from '../config/upstash.js';
@@ -8,15 +8,18 @@ import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 import {
   CreateSubscriptionInput,
   CreateSubscriptionSchema,
+  UpdateSubscriptionSchema,
 } from '../schemas/subscription.js';
 
 export async function getAllSubscriptions(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const subscriptions = await prisma.subscription.findMany();
+    const subscriptions = await prisma.subscription.findMany({
+      where: { userId: req.user!.id },
+    });
 
     res.status(200).json({
       success: true,
@@ -29,7 +32,7 @@ export async function getAllSubscriptions(
 }
 
 export async function getSubscription(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
@@ -37,12 +40,13 @@ export async function getSubscription(
     const id = req.params.id;
 
     const subscription = await prisma.subscription.findUnique({
-      where: { id },
+      where: { id, userId: req.user!.id },
     });
     if (!subscription) {
       res
         .status(404)
         .json({ success: false, message: 'Subscription not found' });
+      return;
     }
     res.status(200).json({
       success: true,
@@ -127,6 +131,7 @@ export async function updateSubscription(
     const existingSubscription = await prisma.subscription.findUnique({
       where: {
         id,
+        userId,
       },
     });
 
@@ -137,14 +142,14 @@ export async function updateSubscription(
       return;
     }
 
+    const data = UpdateSubscriptionSchema.parse(req.body);
+
     const updatedSubscription = await prisma.subscription.update({
       where: {
         id,
         userId,
       },
-      data: {
-        ...req.body,
-      },
+      data,
     });
 
     res.status(200).json({
@@ -153,19 +158,32 @@ export async function updateSubscription(
       data: updatedSubscription,
     });
   } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ success: false, errors: error.errors });
+      return;
+    }
     next(error);
   }
 }
 
 export async function deleteSubscription(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
     const { id } = req.params;
 
-    await prisma.subscription.delete({ where: { id } });
+    const { count } = await prisma.subscription.deleteMany({
+      where: { id, userId: req.user!.id },
+    });
+
+    if (count === 0) {
+      res
+        .status(404)
+        .json({ success: false, message: 'Subscription not found' });
+      return;
+    }
 
     res
       .status(200)
@@ -256,13 +274,14 @@ export async function cancelSubscription(
 }
 
 export async function getUpcomingRenewals(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
     const subscriptions = await prisma.subscription.findMany({
       where: {
+        userId: req.user!.id,
         status: 'active',
         renewalDate: {
           gte: dayjs().toDate(),

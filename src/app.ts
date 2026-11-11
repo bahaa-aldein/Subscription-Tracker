@@ -14,7 +14,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(errorHandler);
 app.use(arcjetMiddleware);
 
 // Routes
@@ -26,6 +25,9 @@ app.use('/auth', authRouter);
 app.use('/users', userRouter);
 app.use('/subscriptions', subscriptionRouter);
 app.use('/workflows', workflowRouter);
+
+// Error handler must be registered after the routes
+app.use(errorHandler);
 
 // Start the server
 app.listen(ENV.PORT, () => {
