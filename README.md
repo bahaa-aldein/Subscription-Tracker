@@ -9,10 +9,9 @@ A backend REST API for managing recurring subscriptions and automating renewal r
 ## Features
 
 - **Subscription management** — full CRUD for subscriptions with multi-currency support (USD, EUR, EGP) and multiple frequencies (daily, weekly, monthly, yearly)
-- **Automated reminders** — Upstash Workflow schedules and dispatches personalized HTML emails before each renewal; 100% timely delivery in production
-- **Authentication** — JWT-based stateless auth with access/refresh tokens and bcrypt password hashing
-- **Security** — Arcjet rate limiting and bot protection, Zod runtime schema validation on all inputs, zero critical vulnerabilities in production
-- **CI/CD** — GitHub Actions pipeline automating linting, type checking, and tests on every pull request; reduced deployment time by 50%
+- **Automated reminders** — Upstash Workflow schedules and dispatches personalized HTML emails before each renewal
+- **Authentication** — JWT authentication and bcrypt password hashing; subscription and user routes require a signed-in user and only return that user's own data
+- **Security** — Arcjet rate limiting, bot protection and shield; Zod validation on subscription create and update
 
 ---
 
@@ -30,8 +29,8 @@ JWT · bcrypt · Arcjet · Zod
 **Workflows & notifications**
 Upstash Workflow · Nodemailer
 
-**DevOps**
-GitHub Actions · ESLint
+**Tooling**
+ESLint · TypeScript
 
 ---
 
@@ -40,9 +39,9 @@ GitHub Actions · ESLint
 ```
 Request → Express Router
             ↓
-        Middleware (JWT auth, rate limiting, Zod validation)
+        Middleware (Arcjet rate limiting, JWT auth)
             ↓
-        Controller (business logic)
+        Controller (Zod validation, business logic)
             ↓
         Prisma ORM → PostgreSQL
             ↓
@@ -58,19 +57,23 @@ Request → Express Router
 - `POST /auth/sign-in` — login
 - `POST /auth/sign-out` — logout
 
-**Subscriptions**
-- `GET /subscriptions` — list all
+**Subscriptions** (all require `Authorization: Bearer <token>`)
+- `GET /subscriptions` — list your subscriptions
+- `GET /subscriptions/upcoming-renewals` — your active subscriptions with a future renewal date
+- `GET /subscriptions/user/:id` — your subscriptions (`:id` must be your user id)
 - `GET /subscriptions/:id` — get one
-- `POST /subscriptions` — create
+- `POST /subscriptions` — create (starts the reminder workflow)
 - `PUT /subscriptions/:id` — update
 - `DELETE /subscriptions/:id` — delete
 - `PUT /subscriptions/:id/cancel` — cancel
-- `GET /subscriptions/user/:id` — user's subscriptions
-- `GET /subscriptions/upcoming-renewals` — upcoming renewals
 
-**Users**
+**Users** (require a token; you can only access your own account)
 - `GET /users/:id` — get profile
-- `PUT /users/:id` — update profile
+- `PUT /users/:id` — update name or email
+- `DELETE /users/:id` — delete account
+
+**Workflows**
+- `POST /workflows/subscription/reminder` — called by Upstash Workflow, not by clients
 
 ---
 
@@ -81,7 +84,7 @@ Request → Express Router
 - Node.js 18+
 - PostgreSQL instance
 - Upstash account (Workflow)
-- Email SMTP credentials
+- Gmail account with an App Password (used by Nodemailer)
 
 ### Installation
 
@@ -93,27 +96,38 @@ npm install
 
 ### Environment variables
 
-Create a `.env` file in the root directory:
+Create a `.env.development` file in the root directory (the app loads `.env.${NODE_ENV}` and defaults to `development`):
 
 ```env
+# Server
+PORT=3000
+SERVER_URL=http://localhost:3000
+
 # Database
 DATABASE_URL=
 
-# Auth
+# Auth (both required; the app will not start without them)
 JWT_SECRET=
 JWT_REFRESH_SECRET=
 
-# Upstash
+# Upstash Workflow
 QSTASH_URL=
 QSTASH_TOKEN=
 
-# Email
-EMAIL_HOST=
-EMAIL_USER=
-EMAIL_PASS=
+# Email (Gmail via Nodemailer)
+GMAIL_USER=
+GMAIL_APP_PASS=
 
 # Arcjet
 ARCJET_KEY=
+ARCJET_ENV=development
+```
+
+### Set up the database
+
+```bash
+npx prisma generate
+npx prisma db push
 ```
 
 ### Run locally

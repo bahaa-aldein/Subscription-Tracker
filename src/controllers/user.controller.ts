@@ -1,28 +1,26 @@
-import { NextFunction, Request, Response } from 'express';
+import { NextFunction, Response } from 'express';
 import prisma from '../database/prisma.js';
+import { AuthenticatedRequest } from '../middleware/auth.middleware.js';
 
-export async function getUsers(
-  req: Request,
+function isOwnAccount(req: AuthenticatedRequest, res: Response): boolean {
+  if (req.params.id !== req.user?.id) {
+    res.status(403).json({ success: false, message: 'Forbidden' });
+    return false;
+  }
+  return true;
+}
+
+export async function getUser(
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const users = await prisma.user.findMany();
-    res.status(200).json({
-      success: true,
-      message: 'Users retrieved successfully',
-      data: users,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
+    if (!isOwnAccount(req, res)) return;
 
-export async function getUser(req: Request, res: Response, next: NextFunction) {
-  try {
-    const id = req.params.id;
     const user = await prisma.user.findUnique({
-      where: { id },
+      where: { id: req.params.id },
+      omit: { password: true },
     });
     if (!user) {
       res.status(404).json({ success: false, message: 'User not found' });
@@ -38,35 +36,19 @@ export async function getUser(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function createUser(
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  try {
-    const { name, email, password } = req.body;
-    const user = await prisma.user.create({ data: { name, email, password } });
-    res.status(201).json({
-      success: true,
-      message: 'User created successfully',
-      data: user,
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
 export async function updateUser(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
+    if (!isOwnAccount(req, res)) return;
+
     const { name, email } = req.body;
     const user = await prisma.user.update({
-      where: { id },
+      where: { id: req.params.id },
       data: { name, email },
+      omit: { password: true },
     });
     res.status(200).json({
       success: true,
@@ -79,13 +61,14 @@ export async function updateUser(
 }
 
 export async function deleteUser(
-  req: Request,
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const id = req.params.id;
-    await prisma.user.delete({ where: { id } });
+    if (!isOwnAccount(req, res)) return;
+
+    await prisma.user.delete({ where: { id: req.params.id } });
     res
       .status(200)
       .json({ success: true, message: 'User deleted successfully' });
